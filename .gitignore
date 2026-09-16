@@ -1,0 +1,67 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Uncomment if this is an app/plugin you never publish to pub.dev
+# (i.e. it's a private app, not a package) — keeps the lockfile out of git
+# pubspec.lock
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle
+/android/.kotlin
+/android/local.properties
+
+# Widget Preview related
+.widget_preview/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Firebase / Google service configuration
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Firebase generated files
+firebase-debug.log
+firebase-debug.*.log
