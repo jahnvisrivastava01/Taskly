@@ -50,6 +50,10 @@ class _TasksScreenState extends State<TasksScreen>
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // CHECK / COMPLETE
+  // ---------------------------------------------------------------------------
+
   void _handleCheckTap(Task task) {
     if (_checkingIds.contains(task.id)) return;
 
@@ -68,6 +72,10 @@ class _TasksScreenState extends State<TasksScreen>
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // ADD / EDIT
+  // ---------------------------------------------------------------------------
+
   void _openAddSheet({Task? editing}) {
     showModalBottomSheet(
       context: context,
@@ -79,6 +87,10 @@ class _TasksScreenState extends State<TasksScreen>
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // COMPLETED TASKS
+  // ---------------------------------------------------------------------------
+
   void _openCompleted() {
     showModalBottomSheet(
       context: context,
@@ -87,6 +99,10 @@ class _TasksScreenState extends State<TasksScreen>
       builder: (_) => const CompletedTasksSheet(),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // BUILD
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -107,9 +123,10 @@ class _TasksScreenState extends State<TasksScreen>
           body: SafeArea(
             child: Column(
               children: [
-                // ---------------------------------------------------------
+                // ----------------------------------------------------------------
                 // HEADER
-                // ---------------------------------------------------------
+                // ----------------------------------------------------------------
+
                 FadeTransition(
                   opacity: _headerController,
                   child: SlideTransition(
@@ -142,8 +159,7 @@ class _TasksScreenState extends State<TasksScreen>
                                       .textTheme
                                       .headlineMedium
                                       ?.copyWith(
-                                        fontWeight:
-                                            FontWeight.w700,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                 ),
                                 const SizedBox(height: 4),
@@ -176,9 +192,10 @@ class _TasksScreenState extends State<TasksScreen>
                   ),
                 ),
 
-                // ---------------------------------------------------------
+                // ----------------------------------------------------------------
                 // PROGRESS BAR
-                // ---------------------------------------------------------
+                // ----------------------------------------------------------------
+
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -188,13 +205,11 @@ class _TasksScreenState extends State<TasksScreen>
                       begin: 0,
                       end: progress,
                     ),
-                    duration:
-                        const Duration(milliseconds: 500),
+                    duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOutCubic,
                     builder: (context, value, _) {
                       return ClipRRect(
-                        borderRadius:
-                            BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(20),
                         child: LinearProgressIndicator(
                           value: value,
                           minHeight: 8,
@@ -212,9 +227,10 @@ class _TasksScreenState extends State<TasksScreen>
 
                 const SizedBox(height: 8),
 
-                // ---------------------------------------------------------
+                // ----------------------------------------------------------------
                 // TASK LIST
-                // ---------------------------------------------------------
+                // ----------------------------------------------------------------
+
                 Expanded(
                   child: !provider.isLoaded
                       ? const Center(
@@ -223,8 +239,7 @@ class _TasksScreenState extends State<TasksScreen>
                       : active.isEmpty
                           ? const EmptyState()
                           : ListView.builder(
-                              padding:
-                                  const EdgeInsets.fromLTRB(
+                              padding: const EdgeInsets.fromLTRB(
                                 16,
                                 8,
                                 16,
@@ -234,7 +249,10 @@ class _TasksScreenState extends State<TasksScreen>
                               itemBuilder: (context, index) {
                                 final row = rows[index];
 
-                                // Date heading
+                                // ------------------------------------------------
+                                // DATE HEADING
+                                // ------------------------------------------------
+
                                 if (row.isHeader) {
                                   return _DateHeaderLabel(
                                     date: row.headerDate!,
@@ -243,25 +261,50 @@ class _TasksScreenState extends State<TasksScreen>
 
                                 final task = row.task!;
 
+                                // ------------------------------------------------
+                                // TASK TILE
+                                // ------------------------------------------------
+
                                 return TaskTile(
                                   key: ValueKey(task.id),
+
                                   task: task,
+
                                   index: row.taskIndex,
+
                                   isExiting:
-                                      _checkingIds.contains(
-                                    task.id,
-                                  ),
+                                      _checkingIds.contains(task.id),
+
+                                  // CHECK
                                   onCheckTap: () =>
                                       _handleCheckTap(task),
+
+                                  // COMPLETE AFTER EXIT ANIMATION
                                   onExitComplete: () =>
                                       _handleExitComplete(task),
-                                  onTap: () =>
-                                      _openAddSheet(
-                                    editing: task,
-                                  ),
+
+                                 
+                                  
+
+                                  // DELETE
                                   onDelete: () => context
                                       .read<TaskProvider>()
                                       .deleteTask(task.id),
+
+                                  // EDIT FROM ⋮ MENU
+                                  onEdit: () =>
+                                      _openAddSheet(
+                                    editing: task,
+                                  ),
+
+                                  // RESTORE
+                                  //
+                                  // Active tasks are the only ones displayed
+                                  // here, so this callback is mainly useful
+                                  // if TaskTile is reused elsewhere.
+                                  onRestore: () => context
+                                      .read<TaskProvider>()
+                                      .restoreTask(task.id),
                                 );
                               },
                             ),
@@ -270,9 +313,10 @@ class _TasksScreenState extends State<TasksScreen>
             ),
           ),
 
-          // ---------------------------------------------------------------
+          // --------------------------------------------------------------------
           // ADD TASK BUTTON
-          // ---------------------------------------------------------------
+          // --------------------------------------------------------------------
+
           floatingActionButton:
               FloatingActionButton.extended(
             onPressed: () => _openAddSheet(),
@@ -285,9 +329,9 @@ class _TasksScreenState extends State<TasksScreen>
   }
 }
 
-// ==========================================================================
+// ============================================================================
 // DATE GROUPING
-// ==========================================================================
+// ============================================================================
 
 class _TaskRow {
   final DateTime? headerDate;
@@ -325,8 +369,7 @@ List<_TaskRow> _buildRows(List<Task> tasks) {
   for (final task in tasks) {
     // If a reminder exists, use its date.
     // Otherwise use the task creation date.
-    final sourceDate =
-        task.reminderAt ?? task.createdAt;
+    final sourceDate = task.reminderAt ?? task.createdAt;
 
     final day = DateTime(
       sourceDate.year,
@@ -335,8 +378,7 @@ List<_TaskRow> _buildRows(List<Task> tasks) {
     );
 
     // Add a new date header whenever the day changes.
-    if (currentDay == null ||
-        day != currentDay) {
+    if (currentDay == null || day != currentDay) {
       rows.add(
         _TaskRow.header(day),
       );
@@ -357,9 +399,9 @@ List<_TaskRow> _buildRows(List<Task> tasks) {
   return rows;
 }
 
-// ==========================================================================
+// ============================================================================
 // DATE HEADER
-// ==========================================================================
+// ============================================================================
 
 class _DateHeaderLabel extends StatelessWidget {
   final DateTime date;
@@ -403,9 +445,9 @@ class _DateHeaderLabel extends StatelessWidget {
   }
 }
 
-// ==========================================================================
+// ============================================================================
 // DATE FORMATTING
-// ==========================================================================
+// ============================================================================
 
 String _ordinalDay(int day) {
   // 11th, 12th and 13th are exceptions.
@@ -416,13 +458,10 @@ String _ordinalDay(int day) {
   switch (day % 10) {
     case 1:
       return '${day}st';
-
     case 2:
       return '${day}nd';
-
     case 3:
       return '${day}rd';
-
     default:
       return '${day}th';
   }
@@ -443,11 +482,9 @@ String _formatDateHeader(DateTime date) {
     date.day,
   );
 
-  final difference =
-      targetDate.difference(today).inDays;
+  final difference = targetDate.difference(today).inDays;
 
-  final monthName =
-      DateFormat('MMMM').format(date);
+  final monthName = DateFormat('MMMM').format(date);
 
   final fullDate =
       '${_ordinalDay(date.day)} '

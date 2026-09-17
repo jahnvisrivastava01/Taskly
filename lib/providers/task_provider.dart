@@ -5,65 +5,152 @@ import '../models/task.dart';
 import '../services/notification_service.dart';
 import '../services/task_storage.dart';
 
-/// Holds the in-memory task list, persists changes, and keeps reminder
-/// notifications in sync with each task's state.
-///
-/// This file must contain the PROVIDER only. The TasksScreen widget lives in
-/// lib/screens/tasks_screen.dart - do not paste screen code in here.
 class TaskProvider extends ChangeNotifier {
   final TaskStorage _storage = TaskStorage();
-  final _uuid = const Uuid();
+
+  final Uuid _uuid = const Uuid();
 
   List<Task> _tasks = [];
+
   bool _isLoaded = false;
+
+  // -------------------------------------------------------------------------
+  // GETTERS
+  // -------------------------------------------------------------------------
 
   bool get isLoaded => _isLoaded;
 
-  /// Not-yet-completed tasks, soonest reminder first, then by creation time.
+  List<Task> get tasks => List.unmodifiable(_tasks);
+
   List<Task> get activeTasks {
-    final list = _tasks.where((t) => !t.isCompleted).toList();
+    final list = _tasks
+        .where((task) => !task.isCompleted)
+        .toList();
+
     list.sort((a, b) {
-      if (a.reminderAt == null && b.reminderAt == null) {
-        return a.createdAt.compareTo(b.createdAt);
-      }
-      if (a.reminderAt == null) return 1;
-      if (b.reminderAt == null) return -1;
-      return a.reminderAt!.compareTo(b.reminderAt!);
+      final aDate = a.reminderAt ?? a.createdAt;
+      final bDate = b.reminderAt ?? b.createdAt;
+
+      return aDate.compareTo(bDate);
     });
+
     return list;
   }
 
-  /// Completed tasks, most recently finished first.
   List<Task> get completedTasks {
-    final list = _tasks.where((t) => t.isCompleted).toList();
-    list.sort((a, b) =>
-        (b.completedAt ?? b.createdAt).compareTo(a.completedAt ?? a.createdAt));
+    final list = _tasks
+        .where((task) => task.isCompleted)
+        .toList();
+
+    list.sort(
+      (a, b) => (b.completedAt ?? b.createdAt)
+          .compareTo(
+            a.completedAt ?? a.createdAt,
+          ),
+    );
+
     return list;
   }
+
+  int get totalTasks => _tasks.length;
+
+  int get activeCount =>
+      _tasks.where((task) => !task.isCompleted).length;
+
+  int get completedCount =>
+      _tasks.where((task) => task.isCompleted).length;
+
+  // -------------------------------------------------------------------------
+  // LOAD TASKS
+  // -------------------------------------------------------------------------
 
   Future<void> load() async {
-    _tasks = await _storage.loadTasks();
+    if (_isLoaded) return;
+
+    try {
+      _tasks = await _storage.loadTasks();
+    } catch (e) {
+      debugPrint('Error loading tasks: $e');
+      _tasks = [];
+    }
+
     _isLoaded = true;
+
     notifyListeners();
+
+    // Restore future reminders after loading saved tasks.
+    await _restoreReminders();
   }
 
-  Future<void> _persist() => _storage.saveTasks(_tasks);
+  // -------------------------------------------------------------------------
+  // RESTORE SAVED REMINDERS
+  // -------------------------------------------------------------------------
 
-  Future<Task> addTask({
+  Future<void> _restoreReminders() async {
+    await NotificationService.instance.init();
+
+    final now = DateTime.now();
+
+    for (final task in _tasks) {
+      if (task.isCompleted) continue;
+
+      final reminder = task.reminderAt;
+
+      if (reminder == null) continue;
+
+      if (reminder.isAfter(now)) {
+        await NotificationService.instance.scheduleReminder(
+          id: task.id,
+          title: task.title,
+          body: task.description,
+          dateTime: reminder,
+        );
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // SAVE
+  // -------------------------------------------------------------------------
+
+  Future<void> _persist() async {
+    try {
+      await _storage.saveTasks(_tasks);
+    } catch (e) {
+      debugPrint('Error saving tasks: $e');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // ADD TASK
+  // -------------------------------------------------------------------------
+
+  Future<Task?> addTask({
     required String title,
     String description = '',
     DateTime? reminderAt,
   }) async {
+    final cleanTitle = title.trim();
+
+    if (cleanTitle.isEmpty) {
+      return null;
+    }
+
     final task = Task(
       id: _uuid.v4(),
-      title: title.trim(),
+      title: cleanTitle,
       description: description.trim(),
       reminderAt: reminderAt,
+      createdAt: DateTime.now(),
     );
+
     _tasks.add(task);
+
     notifyListeners();
+
     await _persist();
 
+    // Schedule reminder if one was selected.
     if (reminderAt != null) {
       await NotificationService.instance.scheduleReminder(
         id: task.id,
@@ -72,8 +159,13 @@ class TaskProvider extends ChangeNotifier {
         dateTime: reminderAt,
       );
     }
+
     return task;
   }
+
+  // -------------------------------------------------------------------------
+  // UPDATE TASK
+  // -------------------------------------------------------------------------
 
   Future<void> updateTask(
     String id, {
@@ -82,22 +174,38 @@ class TaskProvider extends ChangeNotifier {
     DateTime? reminderAt,
     bool clearReminder = false,
   }) async {
-    final index = _tasks.indexWhere((t) => t.id == id);
+    final index = _tasks.indexWhere(
+      (task) => task.id == id,
+    );
+
     if (index == -1) return;
 
-    final updated = _tasks[index].copyWith(
-      title: title,
-      description: description,
+    final current = _tasks[index];
+
+    if (title != null && title.trim().isEmpty) {
+      return;
+    }
+
+    final updated = current.copyWith(
+      title: title?.trim(),
+      description: description?.trim(),
       reminderAt: reminderAt,
       clearReminder: clearReminder,
     );
+
     _tasks[index] = updated;
+
     notifyListeners();
+
     await _persist();
 
-    // Re-schedule from scratch so an edited time replaces the old alarm.
+    // Remove the old reminder first.
     await NotificationService.instance.cancelReminder(id);
-    if (updated.reminderAt != null && !updated.isCompleted) {
+
+    // Schedule the new reminder if appropriate.
+    if (!updated.isCompleted &&
+        updated.reminderAt != null &&
+        updated.reminderAt!.isAfter(DateTime.now())) {
       await NotificationService.instance.scheduleReminder(
         id: updated.id,
         title: updated.title,
@@ -107,45 +215,82 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // COMPLETE TASK
+  // -------------------------------------------------------------------------
+
   Future<void> completeTask(String id) async {
-    final index = _tasks.indexWhere((t) => t.id == id);
+    final index = _tasks.indexWhere(
+      (task) => task.id == id,
+    );
+
     if (index == -1) return;
 
-    _tasks[index] = _tasks[index].copyWith(
+    final updated = _tasks[index].copyWith(
       isCompleted: true,
       completedAt: DateTime.now(),
     );
-    notifyListeners();
-    await _persist();
+
+    _tasks[index] = updated;
+
+    // Cancel reminder immediately.
     await NotificationService.instance.cancelReminder(id);
+
+    notifyListeners();
+
+    await _persist();
   }
 
+  // -------------------------------------------------------------------------
+  // RESTORE TASK
+  // -------------------------------------------------------------------------
+
   Future<void> restoreTask(String id) async {
-    final index = _tasks.indexWhere((t) => t.id == id);
+    final index = _tasks.indexWhere(
+      (task) => task.id == id,
+    );
+
     if (index == -1) return;
 
     final task = _tasks[index];
-    _tasks[index] = task.copyWith(
+
+    final restored = task.copyWith(
       isCompleted: false,
       clearCompletedAt: true,
     );
+
+    _tasks[index] = restored;
+
     notifyListeners();
+
     await _persist();
 
-    if (task.reminderAt != null && task.reminderAt!.isAfter(DateTime.now())) {
+    // Re-create reminder if it is still in the future.
+    if (restored.reminderAt != null &&
+        restored.reminderAt!.isAfter(DateTime.now())) {
       await NotificationService.instance.scheduleReminder(
-        id: task.id,
-        title: task.title,
-        body: task.description,
-        dateTime: task.reminderAt!,
+        id: restored.id,
+        title: restored.title,
+        body: restored.description,
+        dateTime: restored.reminderAt!,
       );
     }
   }
 
+  // -------------------------------------------------------------------------
+  // DELETE TASK
+  // -------------------------------------------------------------------------
+
   Future<void> deleteTask(String id) async {
-    _tasks.removeWhere((t) => t.id == id);
-    notifyListeners();
-    await _persist();
+    _tasks.removeWhere(
+      (task) => task.id == id,
+    );
+
+    // Cancel its reminder.
     await NotificationService.instance.cancelReminder(id);
+
+    notifyListeners();
+
+    await _persist();
   }
 }

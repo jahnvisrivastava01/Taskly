@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import 'tasks_screen.dart';
+import 'home_shell.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, _, _) => const TasksScreen(),
+          pageBuilder: (_, _, _) => const HomeShell(),
           transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(opacity: animation, child: child);
           },

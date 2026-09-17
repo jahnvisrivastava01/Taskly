@@ -6,55 +6,64 @@ import 'package:timezone/timezone.dart' as tz;
 class NotificationService {
   NotificationService._();
 
-  static final NotificationService instance = NotificationService._();
+  static final NotificationService instance =
+      NotificationService._();
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  static const _channelId = 'todo_reminders';
-  static const _channelName = 'Task Reminders';
-  static const _channelDescription = 'Reminders for your to-do list tasks';
+  static const String _channelId = 'todo_reminders';
+  static const String _channelName = 'Task Reminders';
+  static const String _channelDescription =
+      'Reminders for your to-do list tasks';
 
   bool _ready = false;
 
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // INITIALIZE
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
   Future<void> init() async {
     if (_ready) return;
 
-    // Initialize timezone database
+    // Initialize timezone database.
     tz_data.initializeTimeZones();
 
-    // Get device timezone
+    // Get the device timezone.
     try {
       final tzName = await FlutterTimezone.getLocalTimezone();
 
-      tz.setLocalLocation(tz.getLocation(tzName));
+      tz.setLocalLocation(
+        tz.getLocation(tzName),
+      );
     } catch (e) {
-      // Fallback to UTC
-      tz.setLocalLocation(tz.getLocation('UTC'));
+      // Fallback to UTC if the device timezone cannot be detected.
+      tz.setLocalLocation(
+        tz.getLocation('UTC'),
+      );
     }
 
-    // Android initialization
+    // Android initialization.
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
 
-    // iOS initialization
+    // iOS initialization.
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
-    // Initialize plugin
+    // Initialize plugin.
     await _plugin.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      const InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      ),
     );
 
-    // Create Android notification channel
+    // Create Android notification channel.
     const channel = AndroidNotificationChannel(
       _channelId,
       _channelName,
@@ -64,44 +73,45 @@ class NotificationService {
 
     await _plugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    // Ask permissions
+    // Request notification permissions.
     await requestPermissions();
 
     _ready = true;
   }
 
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // PERMISSIONS
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
   Future<void> requestPermissions() async {
     final androidImpl = _plugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
+            AndroidFlutterLocalNotificationsPlugin>();
 
-    // Android 13+
+    // Android 13+ notification permission.
     await androidImpl?.requestNotificationsPermission();
 
-    // Needed for exact reminders
+    // Permission required for exact scheduled alarms.
     await androidImpl?.requestExactAlarmsPermission();
 
-    // iOS
+    // iOS permissions.
     final iosImpl = _plugin
         .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >();
+            IOSFlutterLocalNotificationsPlugin>();
 
-    await iosImpl?.requestPermissions(alert: true, badge: true, sound: true);
+    await iosImpl?.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
   }
 
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // SCHEDULE REMINDER
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
   Future<void> scheduleReminder({
     required String id,
@@ -109,11 +119,21 @@ class NotificationService {
     String? body,
     required DateTime dateTime,
   }) async {
-    final scheduled = tz.TZDateTime.from(dateTime, tz.local);
+    // Make sure the notification service is initialized.
+    if (!_ready) {
+      await init();
+    }
 
-    final now = tz.TZDateTime.now(tz.local);
+    final scheduled = tz.TZDateTime.from(
+      dateTime,
+      tz.local,
+    );
 
-    // Don't schedule notifications in the past
+    final now = tz.TZDateTime.now(
+      tz.local,
+    );
+
+    // Never schedule a notification in the past.
     if (!scheduled.isAfter(now)) {
       return;
     }
@@ -121,16 +141,14 @@ class NotificationService {
     await _plugin.zonedSchedule(
       _notificationId(id),
 
-      // Notification title
       title,
 
-      // Notification body
-      body?.isNotEmpty == true ? body : 'Reminder for your task',
+      body?.trim().isNotEmpty == true
+          ? body!.trim()
+          : 'Reminder for your task',
 
-      // When notification should fire
       scheduled,
 
-      // Notification appearance
       const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
@@ -138,30 +156,40 @@ class NotificationService {
           channelDescription: _channelDescription,
           importance: Importance.max,
           priority: Priority.high,
+          enableVibration: true,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
 
-      // Android exact reminder
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode:
+          AndroidScheduleMode.exactAllowWhileIdle,
 
-      // Required by the version you currently have
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // CANCEL REMINDER
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
   Future<void> cancelReminder(String id) async {
-    await _plugin.cancel(_notificationId(id));
+    if (!_ready) {
+      await init();
+    }
+
+    await _plugin.cancel(
+      _notificationId(id),
+    );
   }
 
-  // ------------------------------------------------------------
-  // CREATE NOTIFICATION ID
-  // ------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // NOTIFICATION ID
+  // -------------------------------------------------------------------------
 
   int _notificationId(String taskId) {
     return taskId.hashCode & 0x7fffffff;
