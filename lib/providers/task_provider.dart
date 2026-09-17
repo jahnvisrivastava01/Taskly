@@ -7,11 +7,9 @@ import '../services/task_storage.dart';
 
 class TaskProvider extends ChangeNotifier {
   final TaskStorage _storage = TaskStorage();
-
   final Uuid _uuid = const Uuid();
 
   List<Task> _tasks = [];
-
   bool _isLoaded = false;
 
   // -------------------------------------------------------------------------
@@ -23,11 +21,18 @@ class TaskProvider extends ChangeNotifier {
   List<Task> get tasks => List.unmodifiable(_tasks);
 
   List<Task> get activeTasks {
-    final list = _tasks
-        .where((task) => !task.isCompleted)
-        .toList();
+    final list = _tasks.where((task) => !task.isCompleted).toList();
 
     list.sort((a, b) {
+      // Higher priority comes first.
+      final priorityComparison =
+          b.priority.index.compareTo(a.priority.index);
+
+      if (priorityComparison != 0) {
+        return priorityComparison;
+      }
+
+      // If priority is the same, sort by reminder/creation date.
       final aDate = a.reminderAt ?? a.createdAt;
       final bDate = b.reminderAt ?? b.createdAt;
 
@@ -38,15 +43,12 @@ class TaskProvider extends ChangeNotifier {
   }
 
   List<Task> get completedTasks {
-    final list = _tasks
-        .where((task) => task.isCompleted)
-        .toList();
+    final list = _tasks.where((task) => task.isCompleted).toList();
 
     list.sort(
-      (a, b) => (b.completedAt ?? b.createdAt)
-          .compareTo(
-            a.completedAt ?? a.createdAt,
-          ),
+      (a, b) => (b.completedAt ?? b.createdAt).compareTo(
+        a.completedAt ?? a.createdAt,
+      ),
     );
 
     return list;
@@ -129,6 +131,8 @@ class TaskProvider extends ChangeNotifier {
     required String title,
     String description = '',
     DateTime? reminderAt,
+    TaskPriority priority = TaskPriority.medium,
+    TaskCategory category = TaskCategory.other,
   }) async {
     final cleanTitle = title.trim();
 
@@ -141,6 +145,8 @@ class TaskProvider extends ChangeNotifier {
       title: cleanTitle,
       description: description.trim(),
       reminderAt: reminderAt,
+      priority: priority,
+      category: category,
       createdAt: DateTime.now(),
     );
 
@@ -172,6 +178,8 @@ class TaskProvider extends ChangeNotifier {
     String? title,
     String? description,
     DateTime? reminderAt,
+    TaskPriority? priority,
+    TaskCategory? category,
     bool clearReminder = false,
   }) async {
     final index = _tasks.indexWhere(
@@ -190,6 +198,8 @@ class TaskProvider extends ChangeNotifier {
       title: title?.trim(),
       description: description?.trim(),
       reminderAt: reminderAt,
+      priority: priority,
+      category: category,
       clearReminder: clearReminder,
     );
 

@@ -14,18 +14,21 @@ class AddEditTaskSheet extends StatefulWidget {
   });
 
   @override
-  State<AddEditTaskSheet> createState() =>
-      _AddEditTaskSheetState();
+  State<AddEditTaskSheet> createState() => _AddEditTaskSheetState();
 }
 
-class _AddEditTaskSheetState
-    extends State<AddEditTaskSheet> {
+class _AddEditTaskSheetState extends State<AddEditTaskSheet> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _descCtrl;
 
   final _formKey = GlobalKey<FormState>();
 
   DateTime? _reminder;
+
+  TaskPriority _priority = TaskPriority.medium;
+
+  TaskCategory _category = TaskCategory.other;
+
   bool _isSaving = false;
 
   @override
@@ -41,6 +44,12 @@ class _AddEditTaskSheetState
     );
 
     _reminder = widget.existing?.reminderAt;
+
+    _priority =
+        widget.existing?.priority ?? TaskPriority.medium;
+
+    _category =
+        widget.existing?.category ?? TaskCategory.other;
   }
 
   @override
@@ -105,7 +114,6 @@ class _AddEditTaskSheetState
       time.minute,
     );
 
-    // Don't allow a reminder in the past.
     if (!selectedDateTime.isAfter(now)) {
       if (!mounted) return;
 
@@ -148,6 +156,8 @@ class _AddEditTaskSheetState
           title: _titleCtrl.text,
           description: _descCtrl.text,
           reminderAt: _reminder,
+          priority: _priority,
+          category: _category,
         );
       } else {
         await provider.updateTask(
@@ -156,6 +166,8 @@ class _AddEditTaskSheetState
           description: _descCtrl.text,
           reminderAt: _reminder,
           clearReminder: _reminder == null,
+          priority: _priority,
+          category: _category,
         );
       }
 
@@ -180,6 +192,40 @@ class _AddEditTaskSheetState
   }
 
   // -------------------------------------------------------------------------
+  // CATEGORY LABEL
+  // -------------------------------------------------------------------------
+
+  String _categoryLabel(TaskCategory category) {
+    switch (category) {
+      case TaskCategory.work:
+        return 'Work';
+      case TaskCategory.college:
+        return 'College';
+      case TaskCategory.personal:
+        return 'Personal';
+      case TaskCategory.shopping:
+        return 'Shopping';
+      case TaskCategory.other:
+        return 'Other';
+    }
+  }
+
+  IconData _categoryIcon(TaskCategory category) {
+    switch (category) {
+      case TaskCategory.work:
+        return Icons.work_outline_rounded;
+      case TaskCategory.college:
+        return Icons.school_outlined;
+      case TaskCategory.personal:
+        return Icons.person_outline_rounded;
+      case TaskCategory.shopping:
+        return Icons.shopping_cart_outlined;
+      case TaskCategory.other:
+        return Icons.category_outlined;
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // BUILD
   // -------------------------------------------------------------------------
 
@@ -187,14 +233,11 @@ class _AddEditTaskSheetState
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-
     final isEditing = widget.existing != null;
 
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context)
-            .viewInsets
-            .bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -211,219 +254,314 @@ class _AddEditTaskSheetState
         ),
         child: Form(
           key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              // -------------------------------------------------------------
-              // HANDLE
-              // -------------------------------------------------------------
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ----------------------------------------------------------------
+                // HANDLE
+                // ----------------------------------------------------------------
 
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(
-                    bottom: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.outlineVariant,
-                    borderRadius:
-                        BorderRadius.circular(4),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(
+                      bottom: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.outlineVariant,
+                      borderRadius:
+                          BorderRadius.circular(4),
+                    ),
                   ),
                 ),
-              ),
 
-              // -------------------------------------------------------------
-              // TITLE
-              // -------------------------------------------------------------
+                // ----------------------------------------------------------------
+                // TITLE
+                // ----------------------------------------------------------------
 
-              Text(
-                isEditing ? 'Edit Task' : 'New Task',
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // -------------------------------------------------------------
-              // TASK TITLE
-              // -------------------------------------------------------------
-
-              TextFormField(
-                controller: _titleCtrl,
-                autofocus: !isEditing,
-                textCapitalization:
-                    TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText:
-                      'What do you need to do?',
-                ),
-                validator: (value) {
-                  if (value == null ||
-                      value.trim().isEmpty) {
-                    return 'Give the task a title';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 12),
-
-              // -------------------------------------------------------------
-              // DESCRIPTION
-              // -------------------------------------------------------------
-
-              TextFormField(
-                controller: _descCtrl,
-                textCapitalization:
-                    TextCapitalization.sentences,
-                minLines: 1,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Notes (optional)',
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // -------------------------------------------------------------
-              // REMINDER
-              // -------------------------------------------------------------
-
-              InkWell(
-                onTap: _isSaving
-                    ? null
-                    : _pickReminder,
-                borderRadius:
-                    BorderRadius.circular(16),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                Text(
+                  isEditing ? 'Edit Task' : 'New Task',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  decoration: BoxDecoration(
-                    color: scheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.5),
-                    borderRadius:
-                        BorderRadius.circular(16),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ----------------------------------------------------------------
+                // TASK TITLE
+                // ----------------------------------------------------------------
+
+                TextFormField(
+                  controller: _titleCtrl,
+                  autofocus: !isEditing,
+                  textCapitalization:
+                      TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'What do you need to do?',
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _reminder == null
-                            ? Icons
-                                .notifications_none_rounded
-                            : Icons
-                                .notifications_active_rounded,
-                        color: scheme.primary,
+                  validator: (value) {
+                    if (value == null ||
+                        value.trim().isEmpty) {
+                      return 'Give the task a title';
+                    }
+
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                // ----------------------------------------------------------------
+                // DESCRIPTION
+                // ----------------------------------------------------------------
+
+                TextFormField(
+                  controller: _descCtrl,
+                  textCapitalization:
+                      TextCapitalization.sentences,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    hintText: 'Notes (optional)',
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ----------------------------------------------------------------
+                // PRIORITY
+                // ----------------------------------------------------------------
+
+                Text(
+                  'Priority',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                SegmentedButton<TaskPriority>(
+                  segments: const [
+                    ButtonSegment(
+                      value: TaskPriority.low,
+                      label: Text('Low'),
+                      icon: Icon(
+                        Icons.keyboard_arrow_down_rounded,
                       ),
+                    ),
+                    ButtonSegment(
+                      value: TaskPriority.medium,
+                      label: Text('Medium'),
+                      icon: Icon(
+                        Icons.remove_rounded,
+                      ),
+                    ),
+                    ButtonSegment(
+                      value: TaskPriority.high,
+                      label: Text('High'),
+                      icon: Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                      ),
+                    ),
+                  ],
+                  selected: {_priority},
+                  onSelectionChanged: _isSaving
+                      ? null
+                      : (selection) {
+                          setState(() {
+                            _priority = selection.first;
+                          });
+                        },
+                ),
 
-                      const SizedBox(width: 12),
+                const SizedBox(height: 16),
 
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                // ----------------------------------------------------------------
+                // CATEGORY
+                // ----------------------------------------------------------------
+
+                Text(
+                  'Category',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                DropdownButtonFormField<TaskCategory>(
+                  initialValue: _category,
+                  decoration: const InputDecoration(
+                    prefixIcon:
+                        Icon(Icons.category_outlined),
+                  ),
+                  items: TaskCategory.values.map(
+                    (category) {
+                      return DropdownMenuItem<TaskCategory>(
+                        value: category,
+                        child: Row(
                           children: [
-                            Text(
-                              _reminder == null
-                                  ? 'Set a reminder'
-                                  : 'Reminder',
-                              style: textTheme.bodyMedium
-                                  ?.copyWith(
-                                fontWeight:
-                                    FontWeight.w600,
-                              ),
+                            Icon(
+                              _categoryIcon(category),
+                              size: 20,
                             ),
-
-                            if (_reminder != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                DateFormat(
-                                  'EEE, MMM d · h:mm a',
-                                ).format(_reminder!),
-                                style: textTheme.bodySmall
-                                    ?.copyWith(
-                                  color: scheme
-                                      .onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                            const SizedBox(width: 10),
+                            Text(
+                              _categoryLabel(category),
+                            ),
                           ],
                         ),
-                      ),
+                      );
+                    },
+                  ).toList(),
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          if (value == null) return;
 
-                      if (_reminder != null)
-                        IconButton(
-                          tooltip: 'Remove reminder',
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                          ),
-                          onPressed: _isSaving
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _reminder = null;
-                                  });
-                                },
-                        )
-                      else
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color:
-                              scheme.onSurfaceVariant,
-                        ),
-                    ],
-                  ),
+                          setState(() {
+                            _category = value;
+                          });
+                        },
                 ),
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-              // -------------------------------------------------------------
-              // SAVE BUTTON
-              // -------------------------------------------------------------
+                // ----------------------------------------------------------------
+                // REMINDER
+                // ----------------------------------------------------------------
 
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed:
-                      _isSaving ? null : _save,
-                  style: FilledButton.styleFrom(
+                InkWell(
+                  onTap:
+                      _isSaving ? null : _pickReminder,
+                  borderRadius:
+                      BorderRadius.circular(16),
+                  child: Container(
                     padding:
                         const EdgeInsets.symmetric(
-                      vertical: 16,
+                      horizontal: 16,
+                      vertical: 14,
                     ),
-                    shape:
-                        RoundedRectangleBorder(
+                    decoration: BoxDecoration(
+                      color: scheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
                       borderRadius:
                           BorderRadius.circular(16),
                     ),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text(
-                          isEditing
-                              ? 'Save Changes'
-                              : 'Add Task',
+                    child: Row(
+                      children: [
+                        Icon(
+                          _reminder == null
+                              ? Icons
+                                  .notifications_none_rounded
+                              : Icons
+                                  .notifications_active_rounded,
+                          color: scheme.primary,
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _reminder == null
+                                    ? 'Set a reminder'
+                                    : 'Reminder',
+                                style: textTheme.bodyMedium
+                                    ?.copyWith(
+                                  fontWeight:
+                                      FontWeight.w600,
+                                ),
+                              ),
+                              if (_reminder != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  DateFormat(
+                                    'EEE, MMM d · h:mm a',
+                                  ).format(_reminder!),
+                                  style: textTheme.bodySmall
+                                      ?.copyWith(
+                                    color: scheme
+                                        .onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (_reminder != null)
+                          IconButton(
+                            tooltip: 'Remove reminder',
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                            ),
+                            onPressed: _isSaving
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _reminder = null;
+                                    });
+                                  },
+                          )
+                        else
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color:
+                                scheme.onSurfaceVariant,
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 20),
+
+                // ----------------------------------------------------------------
+                // SAVE BUTTON
+                // ----------------------------------------------------------------
+
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed:
+                        _isSaving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            isEditing
+                                ? 'Save Changes'
+                                : 'Add Task',
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

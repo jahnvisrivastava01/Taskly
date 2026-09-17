@@ -22,6 +22,12 @@ class _TasksScreenState extends State<TasksScreen>
 
   late final AnimationController _headerController;
 
+  // Search
+  final TextEditingController _searchController =
+      TextEditingController();
+
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +53,7 @@ class _TasksScreenState extends State<TasksScreen>
   @override
   void dispose() {
     _headerController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -101,6 +108,38 @@ class _TasksScreenState extends State<TasksScreen>
   }
 
   // ---------------------------------------------------------------------------
+  // SEARCH
+  // ---------------------------------------------------------------------------
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value.trim().toLowerCase();
+    });
+  }
+
+  List<Task> _filterTasks(List<Task> tasks) {
+    if (_searchQuery.isEmpty) {
+      return tasks;
+    }
+
+    return tasks.where((task) {
+      final title = task.title.toLowerCase();
+      final description = task.description.toLowerCase();
+
+      return title.contains(_searchQuery) ||
+          description.contains(_searchQuery);
+    }).toList();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+
+    setState(() {
+      _searchQuery = '';
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------------------
 
@@ -111,13 +150,17 @@ class _TasksScreenState extends State<TasksScreen>
     return Consumer<TaskProvider>(
       builder: (context, provider, _) {
         final active = provider.activeTasks;
+
+        final filteredTasks = _filterTasks(active);
+
         final completedCount = provider.completedTasks.length;
+
         final total = active.length + completedCount;
 
         final progress =
             total == 0 ? 0.0 : completedCount / total;
 
-        final rows = _buildRows(active);
+        final rows = _buildRows(filteredTasks);
 
         return Scaffold(
           body: SafeArea(
@@ -159,7 +202,8 @@ class _TasksScreenState extends State<TasksScreen>
                                       .textTheme
                                       .headlineMedium
                                       ?.copyWith(
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight:
+                                            FontWeight.w700,
                                       ),
                                 ),
                                 const SizedBox(height: 4),
@@ -171,8 +215,8 @@ class _TasksScreenState extends State<TasksScreen>
                                       .textTheme
                                       .bodyMedium
                                       ?.copyWith(
-                                        color:
-                                            scheme.onSurfaceVariant,
+                                        color: scheme
+                                            .onSurfaceVariant,
                                       ),
                                 ),
                               ],
@@ -193,6 +237,39 @@ class _TasksScreenState extends State<TasksScreen>
                 ),
 
                 // ----------------------------------------------------------------
+                // SEARCH BAR
+                // ----------------------------------------------------------------
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    20,
+                    4,
+                    20,
+                    12,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: 'Search tasks...',
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: _clearSearch,
+                              icon: const Icon(
+                                Icons.close_rounded,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+
+                // ----------------------------------------------------------------
                 // PROGRESS BAR
                 // ----------------------------------------------------------------
 
@@ -205,11 +282,14 @@ class _TasksScreenState extends State<TasksScreen>
                       begin: 0,
                       end: progress,
                     ),
-                    duration: const Duration(milliseconds: 500),
+                    duration: const Duration(
+                      milliseconds: 500,
+                    ),
                     curve: Curves.easeOutCubic,
                     builder: (context, value, _) {
                       return ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius:
+                            BorderRadius.circular(20),
                         child: LinearProgressIndicator(
                           value: value,
                           minHeight: 8,
@@ -234,80 +314,92 @@ class _TasksScreenState extends State<TasksScreen>
                 Expanded(
                   child: !provider.isLoaded
                       ? const Center(
-                          child: CircularProgressIndicator(),
+                          child:
+                              CircularProgressIndicator(),
                         )
                       : active.isEmpty
                           ? const EmptyState()
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                8,
-                                16,
-                                100,
-                              ),
-                              itemCount: rows.length,
-                              itemBuilder: (context, index) {
-                                final row = rows[index];
-
-                                // ------------------------------------------------
-                                // DATE HEADING
-                                // ------------------------------------------------
-
-                                if (row.isHeader) {
-                                  return _DateHeaderLabel(
-                                    date: row.headerDate!,
-                                  );
-                                }
-
-                                final task = row.task!;
-
-                                // ------------------------------------------------
-                                // TASK TILE
-                                // ------------------------------------------------
-
-                                return TaskTile(
-                                  key: ValueKey(task.id),
-
-                                  task: task,
-
-                                  index: row.taskIndex,
-
-                                  isExiting:
-                                      _checkingIds.contains(task.id),
-
-                                  // CHECK
-                                  onCheckTap: () =>
-                                      _handleCheckTap(task),
-
-                                  // COMPLETE AFTER EXIT ANIMATION
-                                  onExitComplete: () =>
-                                      _handleExitComplete(task),
-
-                                 
-                                  
-
-                                  // DELETE
-                                  onDelete: () => context
-                                      .read<TaskProvider>()
-                                      .deleteTask(task.id),
-
-                                  // EDIT FROM ⋮ MENU
-                                  onEdit: () =>
-                                      _openAddSheet(
-                                    editing: task,
+                          : filteredTasks.isEmpty
+                              ? _SearchEmptyState(
+                                  query: _searchQuery,
+                                  onClear: _clearSearch,
+                                )
+                              : ListView.builder(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    100,
                                   ),
+                                  itemCount: rows.length,
+                                  itemBuilder:
+                                      (context, index) {
+                                    final row = rows[index];
 
-                                  // RESTORE
-                                  //
-                                  // Active tasks are the only ones displayed
-                                  // here, so this callback is mainly useful
-                                  // if TaskTile is reused elsewhere.
-                                  onRestore: () => context
-                                      .read<TaskProvider>()
-                                      .restoreTask(task.id),
-                                );
-                              },
-                            ),
+                                    // ------------------------------------------------
+                                    // DATE HEADER
+                                    // ------------------------------------------------
+
+                                    if (row.isHeader) {
+                                      return _DateHeaderLabel(
+                                        date:
+                                            row.headerDate!,
+                                      );
+                                    }
+
+                                    final task =
+                                        row.task!;
+
+                                    // ------------------------------------------------
+                                    // TASK TILE
+                                    // ------------------------------------------------
+
+                                    return TaskTile(
+                                      key: ValueKey(task.id),
+                                      task: task,
+                                      index: row.taskIndex,
+                                      isExiting:
+                                          _checkingIds
+                                              .contains(
+                                        task.id,
+                                      ),
+
+                                      // CHECK
+                                      onCheckTap: () =>
+                                          _handleCheckTap(
+                                        task,
+                                      ),
+
+                                      // COMPLETE AFTER EXIT
+                                      // ANIMATION
+                                      onExitComplete: () =>
+                                          _handleExitComplete(
+                                        task,
+                                      ),
+
+                                      // DELETE
+                                      onDelete: () => context
+                                          .read<TaskProvider>()
+                                          .deleteTask(
+                                            task.id,
+                                          ),
+
+                                      // EDIT FROM ⋮ MENU
+                                      onEdit: () =>
+                                          _openAddSheet(
+                                        editing: task,
+                                      ),
+
+                                      // RESTORE
+                                      onRestore: () => context
+                                          .read<TaskProvider>()
+                                          .restoreTask(
+                                            task.id,
+                                          ),
+                                    );
+                                  },
+                                ),
                 ),
               ],
             ),
@@ -320,11 +412,81 @@ class _TasksScreenState extends State<TasksScreen>
           floatingActionButton:
               FloatingActionButton.extended(
             onPressed: () => _openAddSheet(),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('New Task'),
+            icon: const Icon(
+              Icons.add_rounded,
+            ),
+            label: const Text(
+              'New Task',
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+// ============================================================================
+// SEARCH EMPTY STATE
+// ============================================================================
+
+class _SearchEmptyState extends StatelessWidget {
+  final String query;
+  final VoidCallback onClear;
+
+  const _SearchEmptyState({
+    required this.query,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 64,
+              color: scheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No tasks found',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No active task matches "$query".',
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: onClear,
+              icon: const Icon(
+                Icons.clear_rounded,
+              ),
+              label: const Text(
+                'Clear search',
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -344,18 +506,20 @@ class _TaskRow {
         task = null,
         taskIndex = -1;
 
-  _TaskRow.task(this.task, this.taskIndex)
-      : isHeader = false,
+  _TaskRow.task(
+    this.task,
+    this.taskIndex,
+  )   : isHeader = false,
         headerDate = null;
 }
 
 /// Creates rows like:
 ///
-/// Today · 16th September 2026
+/// Today · 17th September 2026
 ///     Task 1
 ///     Task 2
 ///
-/// Tomorrow · 17th September 2026
+/// Tomorrow · 18th September 2026
 ///     Task 3
 ///
 /// 20th September 2026
@@ -369,7 +533,8 @@ List<_TaskRow> _buildRows(List<Task> tasks) {
   for (final task in tasks) {
     // If a reminder exists, use its date.
     // Otherwise use the task creation date.
-    final sourceDate = task.reminderAt ?? task.createdAt;
+    final sourceDate =
+        task.reminderAt ?? task.createdAt;
 
     final day = DateTime(
       sourceDate.year,
@@ -482,9 +647,11 @@ String _formatDateHeader(DateTime date) {
     date.day,
   );
 
-  final difference = targetDate.difference(today).inDays;
+  final difference =
+      targetDate.difference(today).inDays;
 
-  final monthName = DateFormat('MMMM').format(date);
+  final monthName =
+      DateFormat('MMMM').format(date);
 
   final fullDate =
       '${_ordinalDay(date.day)} '

@@ -10,7 +10,8 @@ import '../models/task.dart';
 /// - Checkbox bounce animation
 /// - Completion exit animation
 /// - Edit / Delete / Restore actions
-/// - Swipe-to-delete
+/// - Priority display
+/// - Category display
 class TaskTile extends StatefulWidget {
   final Task task;
   final int index;
@@ -18,7 +19,6 @@ class TaskTile extends StatefulWidget {
 
   final VoidCallback onCheckTap;
   final VoidCallback onExitComplete;
- 
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onRestore;
@@ -30,7 +30,6 @@ class TaskTile extends StatefulWidget {
     required this.isExiting,
     required this.onCheckTap,
     required this.onExitComplete,
-  
     required this.onDelete,
     required this.onEdit,
     required this.onRestore,
@@ -112,7 +111,6 @@ class _TaskTileState extends State<TaskTile>
     _enterController.dispose();
     _exitController.dispose();
     _bounceController.dispose();
-
     super.dispose();
   }
 
@@ -124,8 +122,95 @@ class _TaskTileState extends State<TaskTile>
     if (widget.isExiting) return;
 
     _bounceController.forward(from: 0);
-
     widget.onCheckTap();
+  }
+
+  // ---------------------------------------------------------------
+  // PRIORITY
+  // ---------------------------------------------------------------
+
+  String _priorityLabel(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.high:
+        return 'High';
+
+      case TaskPriority.medium:
+        return 'Medium';
+
+      case TaskPriority.low:
+        return 'Low';
+    }
+  }
+
+  IconData _priorityIcon(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.high:
+        return Icons.keyboard_arrow_up_rounded;
+
+      case TaskPriority.medium:
+        return Icons.remove_rounded;
+
+      case TaskPriority.low:
+        return Icons.keyboard_arrow_down_rounded;
+    }
+  }
+
+  Color _priorityColor(
+    TaskPriority priority,
+    ColorScheme scheme,
+  ) {
+    switch (priority) {
+      case TaskPriority.high:
+        return scheme.error;
+
+      case TaskPriority.medium:
+        return scheme.tertiary;
+
+      case TaskPriority.low:
+        return scheme.onSurfaceVariant;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // CATEGORY
+  // ---------------------------------------------------------------
+
+  String _categoryLabel(TaskCategory category) {
+    switch (category) {
+      case TaskCategory.work:
+        return 'Work';
+
+      case TaskCategory.college:
+        return 'College';
+
+      case TaskCategory.personal:
+        return 'Personal';
+
+      case TaskCategory.shopping:
+        return 'Shopping';
+
+      case TaskCategory.other:
+        return 'Other';
+    }
+  }
+
+  IconData _categoryIcon(TaskCategory category) {
+    switch (category) {
+      case TaskCategory.work:
+        return Icons.work_outline_rounded;
+
+      case TaskCategory.college:
+        return Icons.school_outlined;
+
+      case TaskCategory.personal:
+        return Icons.person_outline_rounded;
+
+      case TaskCategory.shopping:
+        return Icons.shopping_cart_outlined;
+
+      case TaskCategory.other:
+        return Icons.category_outlined;
+    }
   }
 
   // ---------------------------------------------------------------
@@ -225,16 +310,12 @@ class _TaskTileState extends State<TaskTile>
                 ListTile(
                   leading: Icon(
                     Icons.delete_outline_rounded,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .error,
+                    color: Theme.of(context).colorScheme.error,
                   ),
                   title: Text(
                     'Delete task',
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .error,
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
                   onTap: () {
@@ -269,12 +350,16 @@ class _TaskTileState extends State<TaskTile>
     final scheme = Theme.of(context).colorScheme;
     final task = widget.task;
 
-    final checked =
-        task.isCompleted || widget.isExiting;
+    final checked = task.isCompleted || widget.isExiting;
 
     final overdue = task.reminderAt != null &&
         !checked &&
         task.reminderAt!.isBefore(DateTime.now());
+
+    final priorityColor = _priorityColor(
+      task.priority,
+      scheme,
+    );
 
     // ----------------------------------------------------------------
     // TASK CONTENT
@@ -282,7 +367,6 @@ class _TaskTileState extends State<TaskTile>
 
     final content = GestureDetector(
       child: GestureDetector(
-       
         behavior: HitTestBehavior.opaque,
         child: Container(
           margin: const EdgeInsets.symmetric(
@@ -303,8 +387,7 @@ class _TaskTileState extends State<TaskTile>
             ],
           ),
           child: Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ========================================================
               // CHECKBOX
@@ -316,13 +399,11 @@ class _TaskTileState extends State<TaskTile>
                   scale: Tween<double>(
                     begin: 1.0,
                     end: 1.2,
-                  )
-                      .chain(
-                        CurveTween(
-                          curve: Curves.easeOutBack,
-                        ),
-                      )
-                      .animate(_bounceController),
+                  ).chain(
+                    CurveTween(
+                      curve: Curves.easeOutBack,
+                    ),
+                  ).animate(_bounceController),
                   child: AnimatedContainer(
                     duration: const Duration(
                       milliseconds: 200,
@@ -352,16 +433,12 @@ class _TaskTileState extends State<TaskTile>
                       child: checked
                           ? Icon(
                               Icons.check_rounded,
-                              key: const ValueKey(
-                                'checked',
-                              ),
+                              key: const ValueKey('checked'),
                               size: 16,
                               color: scheme.onPrimary,
                             )
                           : const SizedBox(
-                              key: ValueKey(
-                                'unchecked',
-                              ),
+                              key: ValueKey('unchecked'),
                             ),
                     ),
                   ),
@@ -374,8 +451,7 @@ class _TaskTileState extends State<TaskTile>
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Task title
                     AnimatedDefaultTextStyle(
@@ -403,24 +479,117 @@ class _TaskTileState extends State<TaskTile>
                       Text(
                         task.description,
                         maxLines: 2,
-                        overflow:
-                            TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
                             ?.copyWith(
-                              color:
-                                  scheme.onSurfaceVariant,
+                              color: scheme.onSurfaceVariant,
                             ),
                       ),
                     ],
 
-                    // Reminder
+                    // ------------------------------------------------
+                    // PRIORITY + CATEGORY
+                    // ------------------------------------------------
+
+                    const SizedBox(height: 8),
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ---------------------------------------------
+                        // PRIORITY CHIP
+                        // ---------------------------------------------
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: priorityColor.withValues(
+                              alpha: 0.10,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _priorityIcon(task.priority),
+                                size: 15,
+                                color: priorityColor,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                _priorityLabel(task.priority),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: priorityColor,
+                                      fontWeight:
+                                          FontWeight.w600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // ---------------------------------------------
+                        // CATEGORY CHIP
+                        // ---------------------------------------------
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withValues(
+                              alpha: 0.10,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _categoryIcon(task.category),
+                                size: 15,
+                                color: scheme.primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _categoryLabel(task.category),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: scheme.primary,
+                                      fontWeight:
+                                          FontWeight.w600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // ------------------------------------------------
+                    // REMINDER
+                    // ------------------------------------------------
+
                     if (task.reminderAt != null) ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding:
-                            const EdgeInsets.symmetric(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 4,
                         ),
@@ -432,18 +601,15 @@ class _TaskTileState extends State<TaskTile>
                               BorderRadius.circular(12),
                         ),
                         child: Row(
-                          mainAxisSize:
-                              MainAxisSize.min,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons
                                   .notifications_active_outlined,
                               size: 14,
                               color: overdue
-                                  ? scheme
-                                      .onErrorContainer
-                                  : scheme
-                                      .onPrimaryContainer,
+                                  ? scheme.onErrorContainer
+                                  : scheme.onPrimaryContainer,
                             ),
                             const SizedBox(width: 4),
                             Text(
